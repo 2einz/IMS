@@ -32,8 +32,9 @@ static LogLevel::Level fromString(const std::string &str) {
 
 static const char *toString(LogLevel::Level level) {
   switch (level) {
-#define XX(name) \
-  case LogLevel::name: return #name;
+#define XX(name)       \
+  case LogLevel::name: \
+    return #name;
 
     XX(DEBUG);
     XX(INFO);
@@ -41,7 +42,8 @@ static const char *toString(LogLevel::Level level) {
     XX(ERROR);
     XX(FATAL);
 #undef XX
-  default: return "UNKNOWN";
+    default:
+      return "UNKNOWN";
   }
   return "UNKNOWN";
 }
@@ -55,6 +57,45 @@ void LogAppender::setFormatter(std::shared_ptr<LogFormatter> formatter) {
   MutexGuard guard(lock_);
   formatter_ = formatter;
   has_formatter_ = formatter_ != nullptr ? true : false;
+}
+
+Logger::Logger(const std::string &name) : name_(name), level_(LogLevel::DEBUG) {
+  // formatter_.reset(new LogFormatter(
+  //     "%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%T[%p]%T[%c]%T%f:%l%T%m%n"));
+  formatter_ = std::make_shared<LogFormatter>(
+      "%d{%Y-%m-%d %H:%M:%S}%T%t%T[%p]%T[%c]%T%f:%l%T%m%n");
+}
+
+void Logger::log(LogLevel::Level level, std::shared_ptr<LogEvent> event) {
+  if (level < level_) return;
+  {
+    MutexGuard lock(lock_);
+
+    if (!appenders_.empty()) {
+      auto self = shared_from_this();  // 仅在需要的时候才获取共享指针
+      for (auto &appender : appenders_) {
+        appender->log(self, level, event);
+      }
+      return;
+    }
+  }
+  // 没有appenders且有root_logger_ 则转发到root_logger
+  if (root_logger_) {
+    root_logger_->log(level, event);
+  }
+}
+
+void Logger::setFormatter(std::shared_ptr<LogFormatter> formatter) {
+  {
+    MutexGuard lock(lock_);
+    formatter_ = formatter;
+  }
+  for (auto &i : appenders_) {
+    MutexGuard appender_lock(i->lock_);
+    if (!i->has_formatter_) {
+      i->formatter_ = formatter_;
+    }
+  }
 }
 
 LogFormatter::LogFormatter(const std::string &patter)

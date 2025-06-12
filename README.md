@@ -43,11 +43,17 @@ void log(level, message);
 
 `std::chrono::system_clock::time_point` 创建时默认值为 1970-01-01 08:00:00
 初始化为：`std::chrono::system_clock::now()`
+可以直接使用fmt输出
+```cpp
+  fmt::format(format, m_time)
+```
+
 ### LogAppender
 
 日志记录输出的目的地，应该有file, console, email
 
 每个Logger可以有多个Appender，但是相同的Appender只会被添加一次
+
 
 
 

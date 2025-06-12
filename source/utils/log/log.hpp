@@ -73,17 +73,25 @@ class LogEvent {
   std::thread::id getThreadId() const { return thread_id_; }
 
   // uint32_t getFiberId() const { return fiber_id_; }
+
   std::chrono::system_clock::time_point getTime() const { return time_; }
 
-  std::string getContent() const { return ss_.str(); }
+  // std::string getContent() const { return ss_.str(); }
 
-  std::stringstream& getSS() { return ss_; }
+  // std::stringstream& getSS() { return ss_; }
+
+  std::string getContent() const { return content_; }
 
   std::shared_ptr<Logger> getLogger() const { return logger_; }
 
   const std::string& getThreadName() const { return thread_name_; }
 
   LogLevel::Level getLevel() const { return level_; }
+
+  template <typename... Args>
+  void format(const char* fmt, Args&&... args) {
+    content_ += fmt::format(fmt, std::forward<Args>(args)...);
+  }
 
  private:
   const char* file_ = nullptr;                  // 文件名
@@ -93,7 +101,8 @@ class LogEvent {
   uint32_t fiber_id = 0;                        // 协程id
   std::chrono::system_clock::time_point time_;  // 时间戳
   std::string thread_name_;
-  std::stringstream ss_;
+  // std::stringstream ss_; // 采用fmt库后，使用string更加高效
+  std::string content_;  // 日志内容
   std::shared_ptr<Logger> logger_;
   LogLevel::Level level_;
 };
@@ -116,7 +125,7 @@ class LogAppender {
   /**
    * @brief 将日志输出目标的配置转成YAML String
    */
-  virtual std::string toYamlString() = 0;
+  // virtual std::string toYamlString() = 0;
 
   LogLevel::Level getLevel() const { return level_; }
 
@@ -178,8 +187,8 @@ class Logger : public std::enable_shared_from_this<Logger> {
   LogLevel::Level level_;
   MutexType lock_;
   std::list<std::shared_ptr<LogAppender>> appenders_;
-  std::shared_ptr<LogFormatter> formatter;
-  std::shared_ptr<Logger> root_;
+  std::shared_ptr<LogFormatter> formatter_;
+  std::shared_ptr<Logger> root_logger_;
 };
 
 // 日志队列
@@ -265,9 +274,12 @@ class NameFormatItem final : public LogFormatter::FormatItem {
 class DateTimeFormatItem final : public LogFormatter::FormatItem {
  public:
   explicit DateTimeFormatItem(const std::string& format = "%Y-%m-%d %H:%M:%S")
-      : format_(std::move(format)) {
-    if (format_.empty()) {
-      format_ = "%Y-%m-%d %H:%M:%S";
+      : format_("{:" + format + "}") {
+    if (format_.size() <= 3) {  // 至少需要 "{:}"
+      format_ = "{:%Y-%m-%d %H:%M:%S}";
+    }
+    if (format[0] != '{') {
+      format_ = "{:" + format + "}";
     }
   }
 
