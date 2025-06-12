@@ -2,12 +2,10 @@
 # clang-format -i --style=file <file>
 Language: Cpp
 BasedOnStyle: Google
-IndentPPDirectives: AfterHash
 IndentCaseLabels: false
-AlwaysBreakTemplateDeclarations: false
 DerivePointerAlignment: false
 AllowShortCaseLabelsOnASingleLine: true
-QualifierAlignment: Align
+PointerAlignment: Right
 AlignConsecutiveShortCaseStatements:
   Enabled: true
   AcrossEmptyLines: true

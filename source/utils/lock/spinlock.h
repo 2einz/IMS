@@ -4,8 +4,9 @@
 #include <atomic>
 #include <thread>
 
+namespace reinz {
 class SpinLock {
-public:
+ public:
   SpinLock() = default;
   ~SpinLock() = default;
 
@@ -13,31 +14,38 @@ public:
   SpinLock(const SpinLock &) = delete;
   SpinLock &operator=(const SpinLock &) = delete;
 
-  void lock() {
-    int wait_time = 0;
+  void lock() noexcept {
     // memory_order_acquire:后面访存指令勿重排至此条指令之前
-    while (!locked_.exchange(true, std::memory_order_acquire)) {
-      // 开始自旋
-      if (wait_time < max_spin_count_) {
-        ++wait_time;
-      } else {
-        // 让出cpu
-        std::this_thread::yield();
-        wait_time = 0;
-      }
+    while (!flag_.test_and_set(std::memory_order_acquire)) {
+      std::this_thread::yield();
     }
   }
 
-  void unlock() {
+  void unlock() noexcept {
     // memory_order_release:前面访存指令勿重排到此条指令之后
-    locked_.store(false, std::memory_order_release);
+    flag_.clear(std::memory_order_release);
   }
 
-  bool try_lock() { return !locked_.exchange(true, std::memory_order_acquire); }
+  bool try_lock() noexcept {
+    return !flag_.test_and_set(std::memory_order_acquire);
+  }
 
-private:
-  std::atomic<bool> locked_ = ATOMIC_VAR_INIT(false);
-  const int max_spin_count_ = 100;
+ private:
+  std::atomic_flag flag_;
 };
 
-#endif // SPINLOCK_H
+class SpinlockGuard {
+ public:
+  explicit SpinlockGuard(SpinLock &lock) noexcept : lock_(lock) { lock.lock(); }
+
+  ~SpinlockGuard() noexcept { lock_.unlock(); }
+
+  SpinlockGuard(const SpinlockGuard &) = delete;
+  SpinlockGuard &operator=(const SpinlockGuard &) = delete;
+
+ private:
+  SpinLock &lock_;
+};
+}  // namespace reinz
+
+#endif  // SPINLOCK_H
