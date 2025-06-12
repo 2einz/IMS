@@ -12,7 +12,7 @@
 #include <iostream>
 #include <list>
 #include <memory>
-#include <mutex>
+// #include <mutex>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -21,6 +21,7 @@
 
 #include "../util.h"
 #include "fmt/base.h"
+
 namespace Logging {
 
 using MutexType = reinz::SpinLock;
@@ -47,11 +48,11 @@ class LogLevel {
   /**
    * @brief 将string类型转化为日志级别
    */
-  static LogLevel::Level fromString(const std::string &str);
+  static LogLevel::Level fromString(const std::string& str);
   /**
    * @brief 将日志级别转换为文本输出
    */
-  static const char *toString(LogLevel::Level level);
+  static const char* toString(LogLevel::Level level);
 
   // Todo: 为fmt库提供格式化支持
 };
@@ -59,24 +60,33 @@ class LogLevel {
 class LogEvent {
  public:
   LogEvent(std::shared_ptr<Logger> logger, LogLevel::Level level,
-           const char *file, uint32_t line, uint32_t elapse,
+           const char* file, uint32_t line, uint32_t elapse,
            std::thread::id thread_id, /*uint32_t fiber_id,*/ std::time_t time,
-           const std::string &thread_name);
+           const std::string& thread_name);
 
-  const char *getFile() const { return file_; }
+  const char* getFile() const { return file_; }
+
   int32_t getLine() const { return line_; }
+
   uint32_t getElapse() const { return elapse_; }
+
   std::thread::id getThreadId() const { return thread_id_; }
+
   // uint32_t getFiberId() const { return fiber_id_; }
   std::chrono::system_clock::time_point getTime() const { return time_; }
+
   std::string getContent() const { return ss_.str(); }
-  std::stringstream &getSS() { return ss_; }
+
+  std::stringstream& getSS() { return ss_; }
+
   std::shared_ptr<Logger> getLogger() const { return logger_; }
-  const std::string &getThreadName() const { return thread_name_; }
+
+  const std::string& getThreadName() const { return thread_name_; }
+
   LogLevel::Level getLevel() const { return level_; }
 
  private:
-  const char *file_ = nullptr;                  // 文件名
+  const char* file_ = nullptr;                  // 文件名
   uint32_t line_ = 0;                           // 行号
   uint32_t elapse_ = 0;                         // 程序启动到现在的毫秒数
   std::thread::id thread_id_;                   // 线程id
@@ -109,6 +119,7 @@ class LogAppender {
   virtual std::string toYamlString() = 0;
 
   LogLevel::Level getLevel() const { return level_; }
+
   void setLevel(const LogLevel::Level level) { level_ = level; }
 
   /**
@@ -133,7 +144,7 @@ class Logger : public std::enable_shared_from_this<Logger> {
   friend class LoggerManager;
 
  public:
-  Logger(const std::string &name = "root");
+  Logger(const std::string& name = "root");
 
   void log(LogLevel::Level level, std::shared_ptr<LogEvent> event);
   void debug(std::shared_ptr<LogEvent> event);
@@ -146,8 +157,11 @@ class Logger : public std::enable_shared_from_this<Logger> {
   void clearAppender();
 
   LogLevel::Level getLevel() const { return level_; }
+
   void setLevel(LogLevel::Level level) { level_ = level; }
-  const std::string &getName() const { return name_; }
+
+  const std::string& getName() const { return name_; }
+
   /**
    * @brief 设置日志格式器
    */
@@ -155,7 +169,7 @@ class Logger : public std::enable_shared_from_this<Logger> {
   /*
    * @brief 设置日志格式
    */
-  void setFormatter(const std::string &fmt);
+  void setFormatter(const std::string& fmt);
   std::shared_ptr<LogFormatter> getFormatter();
   std::string toYamlString();
 
@@ -196,13 +210,13 @@ class LogFormatter {
    *
    *  默认格式 "%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
    */
-  LogFormatter(const std::string &pattern);
+  LogFormatter(const std::string& pattern);
 
   void init();
 
   bool isError() const { return error_; }
 
-  const std::string &getPattern() const { return pattern_; }
+  const std::string& getPattern() const { return pattern_; }
 
   std::string format(std::shared_ptr<Logger> logger, LogLevel::Level level,
                      std::shared_ptr<LogEvent> event);
@@ -212,9 +226,13 @@ class LogFormatter {
   class FormatItem {
    public:
     virtual ~FormatItem() = default;
-    virtual void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+    virtual void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
                         LogLevel::Level level,
-                        const std::shared_ptr<LogEvent> &event) = 0;
+                        const std::shared_ptr<LogEvent>& event);
+    virtual void format(fmt::memory_buffer& buffer,
+                        const std::shared_ptr<Logger> logger,
+                        LogLevel::Level level,
+                        std::shared_ptr<LogEvent> event) = 0;
   };
 
  private:
@@ -224,37 +242,44 @@ class LogFormatter {
 
   // 定义工厂函数类型
   using FormatFactory =
-      std::function<std::shared_ptr<FormatItem>(const std::string &)>;
+      std::function<std::shared_ptr<FormatItem>(const std::string&)>;
 
   // 模板函数生成工厂函数
   template <typename T>
   static FormatFactory make_factory() {
-    return [](const std::string &fmt) { return std::make_shared<T>(fmt); };
+    return [](const std::string& fmt) { return std::make_shared<T>(fmt); };
   };
 };  // class LogFormatter
 
 class NameFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit NameFormatItem(const std::string &str = "") {};
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit NameFormatItem(const std::string& str = "") {};
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", event->getLogger()->getName());
   }
 };
 
 class DateTimeFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit DateTimeFormatItem(const std::string &format = "%Y-%m-%d %H:%M:%S")
+  explicit DateTimeFormatItem(const std::string& format = "%Y-%m-%d %H:%M:%S")
       : format_(std::move(format)) {
     if (format_.empty()) {
       format_ = "%Y-%m-%d %H:%M:%S";
     }
   }
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, format_, event->getTime());
+  }
+
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), format_, event->getTime());
   }
 
  private:
@@ -263,90 +288,136 @@ class DateTimeFormatItem final : public LogFormatter::FormatItem {
 
 class FilenameFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit FilenameFormatItem(const std::string &str = "") {}
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit FilenameFormatItem(const std::string& str = "") {}
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", event->getFile());
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", event->getFile());
   }
 };
 
 class LineFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit LineFormatItem(const std::string &str = "") {}
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit LineFormatItem(const std::string& str = "") {}
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", event->getLine());
   }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", event->getLine());
+  }
 };
+
 class NewLineFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit NewLineFormatItem(const std::string &str = "") {}
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit NewLineFormatItem(const std::string& str = "") {}
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "\n");
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "\n");
   }
 };
 
 class MessageFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit MessageFormatItem(const std::string &str = "") {};
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit MessageFormatItem(const std::string& str = "") {};
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", event->getContent());
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", event->getContent());
   }
 };
 
 class ThreadIdFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit ThreadIdFormatItem(const std::string &str = "") {};
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit ThreadIdFormatItem(const std::string& str = "") {};
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt ::print(os, "{}", event->getThreadId());
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", event->getThreadId());
   }
 };
 
 class LevelFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit LevelFormatItem(const std::string &str = "") {};
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit LevelFormatItem(const std::string& str = "") {};
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", LogLevel::toString(level));
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", LogLevel::toString(level));
   }
 };
 
 class ElapseFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit ElapseFormatItem(const std::string &str = "") {};
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit ElapseFormatItem(const std::string& str = "") {};
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", event->getElapse());
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", event->getElapse());
   }
 };
 
 class TabFormatItem final : public LogFormatter::FormatItem {
  public:
   explicit TabFormatItem() {}
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "\t");
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "\t");
   }
 };
 
 class ThreadNameFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit ThreadNameFormatItem(const std::string &str = "") {}
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit ThreadNameFormatItem(const std::string& str = "") {}
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", event->getThreadName());
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", event->getThreadName());
   }
 };
 
@@ -358,15 +429,25 @@ class ThreadNameFormatItem final : public LogFormatter::FormatItem {
 //               const std::shared_ptr<LogEvent> &event) override {
 //     fmt::print(os, "{}", event->getFiberId());
 //   }
+// void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+//             LogLevel::Level level, std::shared_ptr<LogEvent> event) override
+//             {
+//   fmt::format_to(std::back_inserter(buffer), "{}", event->getFiberId());
+// }
 // };
 
 class StringFormatItem final : public LogFormatter::FormatItem {
  public:
-  explicit StringFormatItem(const std::string &str) : string_(str) {}
-  void format(std::ostream &os, const std::shared_ptr<Logger> &logger,
+  explicit StringFormatItem(const std::string& str) : string_(str) {}
+
+  void format(std::ostream& os, const std::shared_ptr<Logger>& logger,
               LogLevel::Level level,
-              const std::shared_ptr<LogEvent> &event) override {
+              const std::shared_ptr<LogEvent>& event) override {
     fmt::print(os, "{}", string_);
+  }
+  void format(fmt::memory_buffer& buffer, const std::shared_ptr<Logger> logger,
+              LogLevel::Level level, std::shared_ptr<LogEvent> event) override {
+    fmt::format_to(std::back_inserter(buffer), "{}", string_);
   }
 
  private:
@@ -377,7 +458,7 @@ class StringFormatItem final : public LogFormatter::FormatItem {
  * @brief 将单个参数转化为字符串
  */
 template <typename T>
-std::string toString(T &&arg) {
+std::string toString(T&& arg) {
   std::stringstream ss;
   ss << std::forward<T>(arg);
   return ss.str();
